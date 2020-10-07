@@ -759,7 +759,8 @@ impl Codegen {
                 defmt_parser::Type::BitField(_) => {
                     // TODO reused in decoder::parse_args(), can we share this somehow without Cargo bug troubles?
                     let all_bitfields = parsed_params.iter().filter(|param| param.index == i);
-                    let largest_bit_index = all_bitfields
+                    // TODO can I get rid of use after move err other than with clone?
+                    let largest_bit_index = all_bitfields.clone()
                         .map(|param| match &param.ty {
                             defmt_parser::Type::BitField(range) => range.end,
                             _ => unreachable!(),
@@ -767,18 +768,33 @@ impl Codegen {
                         .max()
                         .unwrap();
 
-                    match largest_bit_index {
-                        0..=8 => {
-                            exprs.push(quote!(_fmt_.u8(&defmt::export::truncate(*#arg))));
+                    let smallest_bit_index = all_bitfields
+                        .map(|param| match &param.ty {
+                            defmt_parser::Type::BitField(range) => range.start,
+                            _ => unreachable!(),
+                        })
+                        .min()
+                        .unwrap();
+
+                    // indices of the lowest and the highest octet which contains bitfield-relevant data
+                    let lowest_octet = smallest_bit_index / 8; // TODO calc this in map right away
+                    let highest_octet = largest_bit_index / 8;
+                    let truncated_sz = highest_octet - lowest_octet + 1; // in octets
+
+                    match truncated_sz {
+                        1 => {
+                            // shift away unneeded lower octet
+                            // TODO: create helper for shifting because readability
+                            exprs.push(quote!(_fmt_.u8(&defmt::export::truncate((*#arg) >> (#lowest_octet * 8)))));
                         }
-                        9..=16 => {
-                            exprs.push(quote!(_fmt_.u16(&defmt::export::truncate(*#arg))));
+                        2 => {
+                            exprs.push(quote!(_fmt_.u16(&defmt::export::truncate((*#arg) >> (#lowest_octet * 8)))));
                         }
-                        17..=24 => {
-                            exprs.push(quote!(_fmt_.u24(&defmt::export::truncate(*#arg))));
+                        3 => {
+                            exprs.push(quote!(_fmt_.u24(&defmt::export::truncate((*#arg) >> (#lowest_octet * 8)))));
                         }
-                        25..=32 => {
-                            exprs.push(quote!(_fmt_.u32(&defmt::export::truncate(*#arg))));
+                        4 => {
+                            exprs.push(quote!(_fmt_.u32(&defmt::export::truncate((*#arg) >> (#lowest_octet * 8)))));
                         }
                         _ => unreachable!(),
                     }
