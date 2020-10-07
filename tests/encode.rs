@@ -240,6 +240,23 @@ fn bitfields_across_octets() {
 }
 
 #[test]
+fn bitfields_truncate_lower() {
+    let index = fetch_string_index();
+    let timestamp = fetch_timestamp();
+    let mut f = Formatter::new();
+
+    winfo!(f, "bitfields {0:9..14}", 0b0110_0011_1101_0010u16);
+    assert_eq!(
+        f.bytes(),
+        &[
+            index, // bitfields {0:7..12}, {1:0..5}",
+            timestamp,
+            0b0110_0011, // the first octet should have been truncated away
+        ]
+    );
+}
+
+#[test]
 fn boolean_struct() {
     #[derive(Format)]
     struct X {
