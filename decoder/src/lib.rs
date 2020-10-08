@@ -17,7 +17,7 @@ use byteorder::{ReadBytesExt, LE};
 use colored::Colorize;
 
 pub use defmt_common::Level;
-use defmt_parser::{Fragment, Type, Parameter};
+use defmt_parser::{Fragment, Parameter, Type};
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
@@ -417,25 +417,38 @@ impl<'t, 'b> Decoder<'t, 'b> {
                         Some(r) if range_start < r.start => {
                             r.start = range_start;
                         }
-                        Some(r) if range_end> r.end => {
+                        Some(r) if range_end > r.end => {
                             r.end = range_end;
                         }
-                        None => { curr_bitfield_range = Some(Range{start: range_start, end: range_end})}
+                        None => {
+                            curr_bitfield_range = Some(Range {
+                                start: range_start,
+                                end: range_end,
+                            })
+                        }
                         _ => {}
                     }
                 }
-                _ => { i+=1; }
+                _ => {
+                    i += 1;
+                }
             }
 
             num_params_read += 1;
 
             // if we're at the end of the param list or handling a new param, flush our current bitfield
-            if (num_params_read == initial_num_params) || ((&mut params[i]).index != curr_bitfield_index) {
-
+            if (num_params_read == initial_num_params)
+                || ((&mut params[i]).index != curr_bitfield_index)
+            {
                 if let Some(range) = curr_bitfield_range {
                     // range is plausible, i.e. we've actually read a bitfield
-                    params.insert(curr_bitfield_index,Parameter{ index: curr_bitfield_index,
-                                                                          ty: Type::BitField(range)});
+                    params.insert(
+                        curr_bitfield_index,
+                        Parameter {
+                            index: curr_bitfield_index,
+                            ty: Type::BitField(range),
+                        },
+                    );
                 }
 
                 curr_bitfield_range = None;
@@ -443,7 +456,7 @@ impl<'t, 'b> Decoder<'t, 'b> {
             }
         }
 
-        params.dedup_by(|a, b| a.index == b.index );
+        params.dedup_by(|a, b| a.index == b.index);
     }
 
     /// Gets a format string from
@@ -664,7 +677,7 @@ impl<'t, 'b> Decoder<'t, 'b> {
                     let mut data: u64;
                     let lowest_byte = range.start / 8;
                     // -1 because `range` is range-exclusive
-                    let highest_byte = (range.end -1) / 8 ;
+                    let highest_byte = (range.end - 1) / 8;
                     let truncated_sz = highest_byte - lowest_byte + 1; // in octets
 
                     match truncated_sz {
@@ -1330,8 +1343,8 @@ mod tests {
     #[test]
     fn bitfields_truncated_front() {
         let bytes = [
-            0, // index
-            2, // timestamp
+            0,           // index
+            2,           // timestamp
             0b0110_0011, // truncated(!) u16
         ];
         decode_and_expect(

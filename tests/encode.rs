@@ -239,14 +239,17 @@ fn bitfields_across_octets() {
     );
 }
 
-
 #[test]
 fn bitfields_truncate_lower() {
     let index = fetch_string_index();
     let timestamp = fetch_timestamp();
     let mut f = Formatter::new();
 
-    winfo!(f, "bitfields {0:9..14}", 0b0000_0000_0000_1111_0110_0011_1101_0010u32);
+    winfo!(
+        f,
+        "bitfields {0:9..14}",
+        0b0000_0000_0000_1111_0110_0011_1101_0010u32
+    );
     assert_eq!(
         f.bytes(),
         &[
@@ -263,11 +266,7 @@ fn bitfields_assert_range_exclusive() {
     let timestamp = fetch_timestamp();
     let mut f = Formatter::new();
 
-    winfo!(
-        f,
-        "bitfields {0:6..8}",
-        0b1010_0101u8,
-    );
+    winfo!(f, "bitfields {0:6..8}", 0b1010_0101u8,);
     assert_eq!(
         f.bytes(),
         &[

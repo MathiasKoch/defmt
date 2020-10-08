@@ -760,7 +760,8 @@ impl Codegen {
                     // TODO reused in decoder::parse_args(), can we share this somehow without Cargo bug troubles?
                     let all_bitfields = parsed_params.iter().filter(|param| param.index == i);
                     // TODO can I get rid of use after move err other than with clone?
-                    let largest_bit_index = all_bitfields.clone()
+                    let largest_bit_index = all_bitfields
+                        .clone()
                         .map(|param| match &param.ty {
                             defmt_parser::Type::BitField(range) => range.end,
                             _ => unreachable!(),
@@ -778,7 +779,7 @@ impl Codegen {
 
                     // indices of the lowest and the highest octet which contains bitfield-relevant data
                     let lowest_byte = smallest_bit_index / 8;
-                    let highest_byte = (largest_bit_index -1) / 8;
+                    let highest_byte = (largest_bit_index - 1) / 8;
                     let truncated_sz = highest_byte - lowest_byte + 1; // in bytes
 
                     match truncated_sz {
