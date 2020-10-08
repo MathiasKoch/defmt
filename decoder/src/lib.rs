@@ -490,7 +490,8 @@ impl<'t, 'b> Decoder<'t, 'b> {
                 curr_bitfield_index = i;
             }
         }
-        println!("params after dedup {:?}", params);
+
+        params.dedup_by(|a, b| a.index == b.index );
 
         for param in &params {
             match &param.ty {
@@ -661,11 +662,6 @@ impl<'t, 'b> Decoder<'t, 'b> {
                     // -1 because `range` is range-exclusive
                     let highest_octet = (range.end -1) / 8 ;
                     let truncated_sz = highest_octet - lowest_octet + 1; // in octets
-                    println!("range {:?}", range);
-                    println!("bytes {:?}", self.bytes);
-                    println!("lowest_octet {}", lowest_octet);
-                    println!(" ((range.end -1) / 8) {}",  ((range.end -1) / 8));
-                    println!("truncated_sz {}", truncated_sz);
 
                     match truncated_sz {
                         1 => {
