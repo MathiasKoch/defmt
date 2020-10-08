@@ -475,10 +475,17 @@ impl<'t, 'b> Decoder<'t, 'b> {
             }
 
             num_params_read += 1;
-            if (i != curr_bitfield_index) || (num_params_read == initial_num_params) {
-                // we're handling a new param or are at the end of the param list
-                params.insert(curr_bitfield_index,Parameter{index: curr_bitfield_index,
-                                                                     ty: Type::BitField(curr_bitfield_range)});
+
+            if (num_params_read == initial_num_params) || ((&mut params[i]).index != curr_bitfield_index) {
+                // we're at the end of the param list or handling a new param
+
+                if curr_bitfield_range.start <= curr_bitfield_range.end {
+                    // range is plausible, i.e. we've actually read a bitfield
+                    // TODO: just use an option type instead?
+                    params.insert(curr_bitfield_index,Parameter{index: curr_bitfield_index,
+                        ty: Type::BitField(curr_bitfield_range)});
+                }
+
                 curr_bitfield_range = Range{start: u8::MAX, end: 0u8};
                 curr_bitfield_index = i;
             }
@@ -651,7 +658,8 @@ impl<'t, 'b> Decoder<'t, 'b> {
                 Type::BitField(range) => {
                     let mut data: u64;
                     let lowest_octet = range.start / 8;
-                    let highest_octet = range.end / 8 ;
+                    // -1 because `range` is range-exclusive
+                    let highest_octet = (range.end -1) / 8 ;
                     let truncated_sz = highest_octet - lowest_octet + 1; // in octets
                     println!("range {:?}", range);
                     println!("bytes {:?}", self.bytes);
@@ -1300,6 +1308,22 @@ mod tests {
             "bitfields {0:0..7} {0:9..14}",
             &bytes,
             "0.000002 INFO bitfields 0b1010010 0b10001",
+        );
+    }
+
+    #[test]
+    fn bitfields_across_boundaries_diff_indices() {
+        let bytes = [
+            0, // index
+            2, // timestamp
+            0b1101_0010,
+            0b0110_0011, // u16
+            0b1111_1111, // truncated u16
+        ];
+        decode_and_expect(
+            "bitfields {0:0..7} {0:9..14} {1:8..10}",
+            &bytes,
+            "0.000002 INFO bitfields 0b1010010 0b10001 0b11",
         );
     }
 
