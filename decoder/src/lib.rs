@@ -445,6 +445,8 @@ impl<'t, 'b> Decoder<'t, 'b> {
             }
         });
 
+        // deduplicate bitfields and pick the highest one
+        // TODO: create a new one with range min..max instead to make bitfields_across_boundaries pass
         params.dedup_by(|a, b| {
             if a.index == b.index {
                 match (&a.ty, &b.ty) {
@@ -623,25 +625,36 @@ impl<'t, 'b> Decoder<'t, 'b> {
                     args.push(Arg::F32(f32::from_bits(data)));
                 }
                 Type::BitField(range) => {
-                    let data: u64;
+                    let mut data: u64;
+                    // (range.end -1) bc range is size-exclusive
+                    let lowest_octet = (range.end -1) / 8;
+                    let highest_octet = range.start / 8 ;
+                    let truncated_sz = lowest_octet - highest_octet + 1; // in octets
+                    println!("range {:?}", range);
+                    println!("bytes {:?}", self.bytes);
+                    println!("lowest_octet {}", lowest_octet);
+                    println!(" ((range.end -1) / 8) {}",  ((range.end -1) / 8));
+                    println!("truncated_sz {}", truncated_sz);
 
-                    match range.end {
-                        0..=8 => {
+                    match truncated_sz {
+                        1 => {
                             data = self.bytes.read_u8()? as u64;
                         }
-                        0..=16 => {
+                        2 => {
                             data = self.bytes.read_u16::<LE>()? as u64;
                         }
-                        0..=24 => {
+                        3 => {
                             data = self.bytes.read_u24::<LE>()? as u64;
                         }
-                        0..=32 => {
+                        5 => {
                             data = self.bytes.read_u32::<LE>()? as u64;
                         }
                         _ => {
                             unreachable!();
                         }
                     }
+
+                    data <<= lowest_octet * 8;
 
                     args.push(Arg::Uxx(data));
                 }
@@ -1264,6 +1277,20 @@ mod tests {
             "bitfields {0:0..7} {0:9..14}",
             &bytes,
             "0.000002 INFO bitfields 0b1010010 0b10001",
+        );
+    }
+
+    #[test]
+    fn bitfields_truncated_front() {
+        let bytes = [
+            0, // index
+            2, // timestamp
+            0b0110_0011, // truncated(!) u16
+        ];
+        decode_and_expect(
+            "bitfields {0:9..14}",
+            &bytes,
+            "0.000002 INFO bitfields 0b10001",
         );
     }
 
