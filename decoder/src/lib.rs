@@ -451,7 +451,7 @@ impl<'t, 'b> Decoder<'t, 'b> {
         // deduplicate bitfields by merging them into a new one with range min..max
         // TODO refactor when `drain_filter()` is stable
         // sorry about the wonky vars but accessing enum fields is too messy to just use a Param{}
-        let mut curr_bitfield_range = Range{start: u8::MAX, end: 0u8};
+        let mut curr_bitfield_range: Option<Range<u8>> = None;
         let mut curr_bitfield_index = 0;
         let mut i = 0;
         let initial_num_params = params.len();
@@ -463,12 +463,15 @@ impl<'t, 'b> Decoder<'t, 'b> {
                     let range_end = range.end;
                     params.remove(i);
 
-                    // TODO can I shorten these, ? : ; style?
-                    if range_start < curr_bitfield_range.start {
-                        curr_bitfield_range.start = range_start;
-                    }
-                    if range_end > curr_bitfield_range.end {
-                        curr_bitfield_range.end = range_end;
+                    match &mut curr_bitfield_range {
+                        Some(r) if range_start < r.start => {
+                            r.start = range_start;
+                        }
+                        Some(r) if range_end> r.end => {
+                            r.end = range_end;
+                        }
+                        None => { curr_bitfield_range = Some(Range{start: range_start, end: range_end})}
+                        _ => {}
                     }
                 }
                 _ => { i+=1; }
@@ -476,17 +479,16 @@ impl<'t, 'b> Decoder<'t, 'b> {
 
             num_params_read += 1;
 
+            // if we're at the end of the param list or handling a new param, flush our current bitfield
             if (num_params_read == initial_num_params) || ((&mut params[i]).index != curr_bitfield_index) {
-                // we're at the end of the param list or handling a new param
 
-                if curr_bitfield_range.start <= curr_bitfield_range.end {
+                if let Some(range) = curr_bitfield_range {
                     // range is plausible, i.e. we've actually read a bitfield
-                    // TODO: just use an option type instead?
-                    params.insert(curr_bitfield_index,Parameter{index: curr_bitfield_index,
-                        ty: Type::BitField(curr_bitfield_range)});
+                    params.insert(curr_bitfield_index,Parameter{ index: curr_bitfield_index,
+                                                                          ty: Type::BitField(range)});
                 }
 
-                curr_bitfield_range = Range{start: u8::MAX, end: 0u8};
+                curr_bitfield_range = None;
                 curr_bitfield_index = i;
             }
         }
