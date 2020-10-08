@@ -382,58 +382,8 @@ impl<'t, 'b> Decoder<'t, 'b> {
         Ok(())
     }
 
-    /// Gets a format string from
-    /// - the `FormatList`, if it's in `Use` mode, or
-    /// - from `bytes` and `table` if the `FormatList` is in `Build` mode or was not provided
-    fn get_format(&mut self) -> Result<&'t str, DecodeError> {
-        if let Some(FormatList::Use { formats, cursor }) = self.format_list.as_mut() {
-            if let Some(format) = formats.get(*cursor) {
-                *cursor += 1;
-                return Ok(format);
-            }
-        }
-
-        let index = read_leb128(&mut self.bytes)?;
-        let format = self
-            .table
-            .get_without_level(index as usize)
-            .map_err(|_| DecodeError::Malformed)?;
-
-        if let Some(FormatList::Build { formats }) = self.format_list.as_mut() {
-            if !self.below_enum {
-                formats.push(format)
-            }
-        }
-        Ok(format)
-    }
-
-    fn get_variant(&mut self, format: &'t str) -> Result<&'t str, DecodeError> {
-        assert!(format.contains("|"));
-        let discriminant = self.bytes.read_u8()?;
-
-        // NOTE nesting of enums, like "A|B(C|D)" is not possible; indirection is
-        // required: "A|B({:?})" where "{:?}" -> "C|D"
-        format
-            .split('|')
-            .nth(usize::from(discriminant))
-            .ok_or(DecodeError::Malformed)
-    }
-
-    /// Decodes arguments from the stream, according to `format`.
-    fn decode_format(&mut self, format: &str) -> Result<Vec<Arg<'t>>, DecodeError> {
-        let mut args = vec![]; // will contain the deserialized arguments on return
-        let mut params = defmt_parser::parse(format)
-            .map_err(|_| DecodeError::Malformed)?
-            .iter()
-            .filter_map(|frag| match frag {
-                Fragment::Parameter(param) => Some(param.clone()),
-                Fragment::Literal(_) => None,
-            })
-            .collect::<Vec<_>>();
-
-
-        // TODO move prep into own fn for readability
-
+    /// Sort and deduplicate `params` so that they can be interpreted correctly during decoding
+    fn prepare_params(&self, params: &mut Vec<Parameter>) {
         // sort & dedup to ensure that format string args can be addressed by index too
         params.sort_by(|a, b| {
             if a.index == b.index {
@@ -494,6 +444,58 @@ impl<'t, 'b> Decoder<'t, 'b> {
         }
 
         params.dedup_by(|a, b| a.index == b.index );
+    }
+
+    /// Gets a format string from
+    /// - the `FormatList`, if it's in `Use` mode, or
+    /// - from `bytes` and `table` if the `FormatList` is in `Build` mode or was not provided
+    fn get_format(&mut self) -> Result<&'t str, DecodeError> {
+        if let Some(FormatList::Use { formats, cursor }) = self.format_list.as_mut() {
+            if let Some(format) = formats.get(*cursor) {
+                *cursor += 1;
+                return Ok(format);
+            }
+        }
+
+        let index = read_leb128(&mut self.bytes)?;
+        let format = self
+            .table
+            .get_without_level(index as usize)
+            .map_err(|_| DecodeError::Malformed)?;
+
+        if let Some(FormatList::Build { formats }) = self.format_list.as_mut() {
+            if !self.below_enum {
+                formats.push(format)
+            }
+        }
+        Ok(format)
+    }
+
+    fn get_variant(&mut self, format: &'t str) -> Result<&'t str, DecodeError> {
+        assert!(format.contains("|"));
+        let discriminant = self.bytes.read_u8()?;
+
+        // NOTE nesting of enums, like "A|B(C|D)" is not possible; indirection is
+        // required: "A|B({:?})" where "{:?}" -> "C|D"
+        format
+            .split('|')
+            .nth(usize::from(discriminant))
+            .ok_or(DecodeError::Malformed)
+    }
+
+    /// Decodes arguments from the stream, according to `format`.
+    fn decode_format(&mut self, format: &str) -> Result<Vec<Arg<'t>>, DecodeError> {
+        let mut args = vec![]; // will contain the deserialized arguments on return
+        let mut params = defmt_parser::parse(format)
+            .map_err(|_| DecodeError::Malformed)?
+            .iter()
+            .filter_map(|frag| match frag {
+                Fragment::Parameter(param) => Some(param.clone()),
+                Fragment::Literal(_) => None,
+            })
+            .collect::<Vec<_>>();
+
+        self.prepare_params(&mut params);
 
         for param in &params {
             match &param.ty {
