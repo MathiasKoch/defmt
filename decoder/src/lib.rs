@@ -431,10 +431,57 @@ impl<'t, 'b> Decoder<'t, 'b> {
             })
             .collect::<Vec<_>>();
 
+
+        // TODO move prep into own fn for readability
+        println!("params {:?}", params);
+
+        // as long as `drain_filter()` is experimental: manually drain all Bitfields
+        let mut bitfields= vec![];
+        let mut i = 0;
+        while i != params.len() {
+            match (&mut params[i]).ty {
+                Type::BitField(_) => {
+                    let bf = params.swap_remove(i);
+                    bitfields.push(bf);
+                }
+                _ => {
+                    i += 1;
+                }
+            }
+        }
+
+        // TODO copied over from macros/lib.rs! we need to share code between crates somehow, this is a mess
+        let largest_bit_index = bitfields.into_iter()
+            .map(|param| match &param.ty {
+                defmt_parser::Type::BitField(range) => range.end,
+                _ => unreachable!(),
+            })
+            .max()
+            .unwrap();
+
+        let smallest_bit_index = bitfields.into_iter()
+            .map(|param| match &param.ty {
+                defmt_parser::Type::BitField(range) => range.start,
+                _ => unreachable!(),
+            })
+            .min()
+            .unwrap();
+
+        // Type::BitField(Range{start: smallest_bit_index, end: largest_bit_index})
+        // create a new bitfield spanning from lowest to highest index; steal ind
+
+        // TODO: fuck! group by index!
+        if let Some(bitfield) = bitfields.get_mut(0) {
+            meta_bitfield = Parameter{};
+            params.push(meta_bitfield);
+        }
+        println!("params {:?}", params);
+
         // sort & dedup to ensure that format string args can be addressed by index too
         params.sort_by(|a, b| {
             if a.index == b.index {
                 match (&a.ty, &b.ty) {
+                    // TODO remove this, we should have only one bf left anyway
                     (Type::BitField(a_range), Type::BitField(b_range)) => {
                         b_range.end.cmp(&a_range.end)
                     }
