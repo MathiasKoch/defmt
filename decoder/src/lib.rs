@@ -17,7 +17,7 @@ use byteorder::{ReadBytesExt, LE};
 use colored::Colorize;
 
 pub use defmt_common::Level;
-use defmt_parser::{Fragment, Type};
+use defmt_parser::{Fragment, Type, Parameter};
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
@@ -435,55 +435,12 @@ impl<'t, 'b> Decoder<'t, 'b> {
         // TODO move prep into own fn for readability
         println!("params {:?}", params);
 
-        // as long as `drain_filter()` is experimental: manually drain all Bitfields
-        let mut bitfields= vec![];
-        let mut i = 0;
-        while i != params.len() {
-            match (&mut params[i]).ty {
-                Type::BitField(_) => {
-                    let bf = params.swap_remove(i);
-                    bitfields.push(bf);
-                }
-                _ => {
-                    i += 1;
-                }
-            }
-        }
-
-        // TODO copied over from macros/lib.rs! we need to share code between crates somehow, this is a mess
-        let largest_bit_index = bitfields.into_iter()
-            .map(|param| match &param.ty {
-                defmt_parser::Type::BitField(range) => range.end,
-                _ => unreachable!(),
-            })
-            .max()
-            .unwrap();
-
-        let smallest_bit_index = bitfields.into_iter()
-            .map(|param| match &param.ty {
-                defmt_parser::Type::BitField(range) => range.start,
-                _ => unreachable!(),
-            })
-            .min()
-            .unwrap();
-
-        // Type::BitField(Range{start: smallest_bit_index, end: largest_bit_index})
-        // create a new bitfield spanning from lowest to highest index; steal ind
-
-        // TODO: fuck! group by index!
-        if let Some(bitfield) = bitfields.get_mut(0) {
-            meta_bitfield = Parameter{};
-            params.push(meta_bitfield);
-        }
-        println!("params {:?}", params);
-
         // sort & dedup to ensure that format string args can be addressed by index too
         params.sort_by(|a, b| {
             if a.index == b.index {
                 match (&a.ty, &b.ty) {
-                    // TODO remove this, we should have only one bf left anyway
                     (Type::BitField(a_range), Type::BitField(b_range)) => {
-                        b_range.end.cmp(&a_range.end)
+                        a_range.start.cmp(&b_range.start)
                     }
                     _ => Ordering::Equal,
                 }
@@ -492,21 +449,44 @@ impl<'t, 'b> Decoder<'t, 'b> {
             }
         });
 
-        // deduplicate bitfields and pick the highest one
-        // TODO: create a new one with range min..max instead to make bitfields_across_boundaries pass
-        params.dedup_by(|a, b| {
-            if a.index == b.index {
-                match (&a.ty, &b.ty) {
-                    (Type::BitField(a_range), Type::BitField(b_range)) => a_range.end < b_range.end,
-                    /* reusing an arg for bitfield- and non bitfield params is not allowed */
-                    (Type::BitField(_), _) => unreachable!(),
-                    (_, Type::BitField(_)) => unreachable!(),
-                    _ => true,
+        println!("params after sorting {:?}", params);
+
+        // deduplicate bitfields by merging them into a new one with range min..max
+        // TODO refactor when `drain_filter()` is stable
+        // sorry about the wonky vars but accessing enum fields is too messy to just use a Param{}
+        let mut curr_bitfield_range = Range{start: u8::MAX, end: 0u8};
+        let mut curr_bitfield_index = 0;
+        let mut i = 0;
+        let initial_num_params = params.len();
+        let mut num_params_read = 0;
+        while num_params_read < initial_num_params {
+            match &(&mut params[i]).ty {
+                Type::BitField(range) => {
+                    let range_start = range.start;
+                    let range_end = range.end;
+                    params.remove(i);
+
+                    // TODO can I shorten these, ? : ; style?
+                    if range_start < curr_bitfield_range.start {
+                        curr_bitfield_range.start = range_start;
+                    }
+                    if range_end > curr_bitfield_range.end {
+                        curr_bitfield_range.end = range_end;
+                    }
                 }
-            } else {
-                false
+                _ => { i+=1; }
             }
-        });
+
+            num_params_read += 1;
+            if (i != curr_bitfield_index) || (num_params_read == initial_num_params) {
+                // we're handling a new param or are at the end of the param list
+                params.insert(curr_bitfield_index,Parameter{index: curr_bitfield_index,
+                                                                     ty: Type::BitField(curr_bitfield_range)});
+                curr_bitfield_range = Range{start: u8::MAX, end: 0u8};
+                curr_bitfield_index = i;
+            }
+        }
+        println!("params after dedup {:?}", params);
 
         for param in &params {
             match &param.ty {
