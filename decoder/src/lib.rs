@@ -433,7 +433,6 @@ impl<'t, 'b> Decoder<'t, 'b> {
 
 
         // TODO move prep into own fn for readability
-        println!("params {:?}", params);
 
         // sort & dedup to ensure that format string args can be addressed by index too
         params.sort_by(|a, b| {
@@ -448,8 +447,6 @@ impl<'t, 'b> Decoder<'t, 'b> {
                 a.index.cmp(&b.index)
             }
         });
-
-        println!("params after sorting {:?}", params);
 
         // deduplicate bitfields by merging them into a new one with range min..max
         // TODO refactor when `drain_filter()` is stable
@@ -653,10 +650,9 @@ impl<'t, 'b> Decoder<'t, 'b> {
                 }
                 Type::BitField(range) => {
                     let mut data: u64;
-                    // (range.end -1) bc range is size-exclusive
-                    let lowest_octet = (range.end -1) / 8;
-                    let highest_octet = range.start / 8 ;
-                    let truncated_sz = lowest_octet - highest_octet + 1; // in octets
+                    let lowest_octet = range.start / 8;
+                    let highest_octet = range.end / 8 ;
+                    let truncated_sz = highest_octet - lowest_octet + 1; // in octets
                     println!("range {:?}", range);
                     println!("bytes {:?}", self.bytes);
                     println!("lowest_octet {}", lowest_octet);
