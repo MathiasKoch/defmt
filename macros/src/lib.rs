@@ -777,24 +777,24 @@ impl Codegen {
                         .unwrap();
 
                     // indices of the lowest and the highest octet which contains bitfield-relevant data
-                    let lowest_octet = smallest_bit_index / 8; // TODO calc this in map right away
-                    let highest_octet = (largest_bit_index -1) / 8;
-                    let truncated_sz = highest_octet - lowest_octet + 1; // in octets
+                    let lowest_byte = smallest_bit_index / 8;
+                    let highest_byte = (largest_bit_index -1) / 8;
+                    let truncated_sz = highest_byte - lowest_byte + 1; // in bytes
 
                     match truncated_sz {
                         1 => {
                             // shift away unneeded lower octet
                             // TODO: create helper for shifting because readability
-                            exprs.push(quote!(_fmt_.u8(&defmt::export::truncate((*#arg) >> (#lowest_octet * 8)))));
+                            exprs.push(quote!(_fmt_.u8(&defmt::export::truncate((*#arg) >> (#lowest_byte * 8)))));
                         }
                         2 => {
-                            exprs.push(quote!(_fmt_.u16(&defmt::export::truncate((*#arg) >> (#lowest_octet * 8)))));
+                            exprs.push(quote!(_fmt_.u16(&defmt::export::truncate((*#arg) >> (#lowest_byte * 8)))));
                         }
                         3 => {
-                            exprs.push(quote!(_fmt_.u24(&defmt::export::truncate((*#arg) >> (#lowest_octet * 8)))));
+                            exprs.push(quote!(_fmt_.u24(&defmt::export::truncate((*#arg) >> (#lowest_byte * 8)))));
                         }
                         4 => {
-                            exprs.push(quote!(_fmt_.u32(&defmt::export::truncate((*#arg) >> (#lowest_octet * 8)))));
+                            exprs.push(quote!(_fmt_.u32(&defmt::export::truncate((*#arg) >> (#lowest_byte * 8)))));
                         }
                         _ => unreachable!(),
                     }

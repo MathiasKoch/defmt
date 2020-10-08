@@ -662,10 +662,10 @@ impl<'t, 'b> Decoder<'t, 'b> {
                 }
                 Type::BitField(range) => {
                     let mut data: u64;
-                    let lowest_octet = range.start / 8;
+                    let lowest_byte = range.start / 8;
                     // -1 because `range` is range-exclusive
-                    let highest_octet = (range.end -1) / 8 ;
-                    let truncated_sz = highest_octet - lowest_octet + 1; // in octets
+                    let highest_byte = (range.end -1) / 8 ;
+                    let truncated_sz = highest_byte - lowest_byte + 1; // in octets
 
                     match truncated_sz {
                         1 => {
@@ -685,7 +685,7 @@ impl<'t, 'b> Decoder<'t, 'b> {
                         }
                     }
 
-                    data <<= lowest_octet * 8;
+                    data <<= lowest_byte * 8;
 
                     args.push(Arg::Uxx(data));
                 }
