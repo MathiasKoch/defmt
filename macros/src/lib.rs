@@ -778,7 +778,7 @@ impl Codegen {
 
                     // indices of the lowest and the highest octet which contains bitfield-relevant data
                     let lowest_octet = smallest_bit_index / 8; // TODO calc this in map right away
-                    let highest_octet = largest_bit_index / 8;
+                    let highest_octet = (largest_bit_index -1) / 8;
                     let truncated_sz = highest_octet - lowest_octet + 1; // in octets
 
                     match truncated_sz {

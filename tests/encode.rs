@@ -258,6 +258,27 @@ fn bitfields_truncate_lower() {
 }
 
 #[test]
+fn bitfields_assert_range_exclusive() {
+    let index = fetch_string_index();
+    let timestamp = fetch_timestamp();
+    let mut f = Formatter::new();
+
+    winfo!(
+        f,
+        "bitfields {0:6..8}",
+        0b1010_0101u8,
+    );
+    assert_eq!(
+        f.bytes(),
+        &[
+            index, // "bitfields {0:6..8}"
+            timestamp,
+            0b1010_0101
+        ]
+    );
+}
+
+#[test]
 fn boolean_struct() {
     #[derive(Format)]
     struct X {
