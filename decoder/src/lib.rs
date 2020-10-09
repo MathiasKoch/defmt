@@ -414,11 +414,13 @@ impl<'t, 'b> Decoder<'t, 'b> {
                     params.remove(i);
 
                     match &mut curr_bitfield_range {
-                        Some(r) if range_start < r.start => {
-                            r.start = range_start;
-                        }
-                        Some(r) if range_end > r.end => {
-                            r.end = range_end;
+                        Some(r) => {
+                            if range_start < r.start {
+                                r.start = range_start;
+                            }
+                            if range_end > r.end {
+                                r.end = range_end;
+                            }
                         }
                         None => {
                             curr_bitfield_range = Some(Range {
@@ -426,7 +428,6 @@ impl<'t, 'b> Decoder<'t, 'b> {
                                 end: range_end,
                             })
                         }
-                        _ => {}
                     }
                 }
                 _ => {
