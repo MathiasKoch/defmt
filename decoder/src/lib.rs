@@ -407,7 +407,7 @@ impl<'t, 'b> Decoder<'t, 'b> {
         let initial_num_params = params.len();
         let mut num_params_read = 0;
         while num_params_read < initial_num_params {
-            match &(&mut params[i]).ty {
+            match &params[i].ty {
                 Type::BitField(range) => {
                     let range_start = range.start;
                     let range_end = range.end;
