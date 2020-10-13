@@ -439,7 +439,7 @@ impl<'t, 'b> Decoder<'t, 'b> {
 
             // if we're at the end of the param list or handling a new param, flush our current bitfield
             if (num_params_read == initial_num_params)
-                || ((&mut params[i]).index != curr_bitfield_index)
+                || (params[i].index != curr_bitfield_index)
             {
                 if let Some(range) = curr_bitfield_range {
                     // range is plausible, i.e. we've actually read a bitfield
