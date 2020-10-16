@@ -407,7 +407,7 @@ impl<'t, 'b> Decoder<'t, 'b> {
         let initial_num_params = params.len();
         let mut num_params_read = 0;
         while num_params_read < initial_num_params {
-            match &(&mut params[i]).ty {
+            match &params[i].ty {
                 Type::BitField(range) => {
                     let range_start = range.start;
                     let range_end = range.end;
@@ -439,7 +439,7 @@ impl<'t, 'b> Decoder<'t, 'b> {
 
             // if we're at the end of the param list or handling a new param, flush our current bitfield
             if (num_params_read == initial_num_params)
-                || ((&mut params[i]).index != curr_bitfield_index)
+                || (params[i].index != curr_bitfield_index)
             {
                 if let Some(range) = curr_bitfield_range {
                     // range is plausible, i.e. we've actually read a bitfield
