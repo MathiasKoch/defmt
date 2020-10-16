@@ -1,3 +1,5 @@
+//! INTERNAL; DO NOT USE. Please use the `defmt` crate to access the functionality implemented here
+
 use core::fmt::Write as _;
 use proc_macro::{Span, TokenStream};
 

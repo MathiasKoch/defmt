@@ -1,3 +1,4 @@
+//! INTERNAL; DO NOT USE. Please use the `defmt` crate to access the functionality implemented here.
 //! Reads ELF metadata and builds an interner table
 
 use std::{
