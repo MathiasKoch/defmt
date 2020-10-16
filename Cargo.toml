@@ -20,6 +20,9 @@ members = [
   "qemu-run",
   "firmware/*",
 ]
+unstable = [
+  "decoder"
+]
 
 [profile.release]
 codegen-units = 1
