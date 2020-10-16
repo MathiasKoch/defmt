@@ -7,7 +7,7 @@ version = "0.1.0"
 
 [dependencies]
 anyhow = "1.0.32"
-defmt-decoder = { path = "../decoder" }
+defmt-decoder = { path = "../decoder", features = ["unstable"]}
 gimli = "0.22.0"
 
 [dependencies.object]

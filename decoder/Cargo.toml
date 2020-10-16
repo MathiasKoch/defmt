@@ -14,7 +14,5 @@ leb128 = "0.2.4"
 ryu = "1"
 
 [features]
-unstable = [
-  "decoder" # WARNING: API and wire format subject to change.
-]
-decoder = []
+# WARNING: API and wire format subject to change.
+unstable = []
