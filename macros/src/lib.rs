@@ -415,8 +415,8 @@ fn is_logging_enabled(level: MLevel) -> TokenStream2 {
     )
 }
 
-// note that we are not using the `Level` type because we want to avoid dependencies on
-// `defmt-common` due to Cargo bugs in crate sharing
+// note that we are not using a `Level` type shared with `decoder` due to Cargo bugs in crate sharing
+// TODO -> move Level to parser?
 fn log(level: MLevel, ts: TokenStream) -> TokenStream {
     let log = parse_macro_input!(ts as Log);
     let ls = log.litstr.value();
@@ -752,6 +752,7 @@ impl Codegen {
                 }
                 defmt_parser::Type::BitField(_) => {
                     // TODO reused in decoder::parse_args(), can we share this somehow without Cargo bug troubles?
+                    // TODO -> move this to parser!
                     let all_bitfields = parsed_params.iter().filter(|param| param.index == i);
                     let largest_bit_index = all_bitfields
                         .map(|param| match &param.ty {

@@ -16,7 +16,6 @@ use std::{
 use byteorder::{ReadBytesExt, LE};
 use colored::Colorize;
 
-pub use defmt_common::Level;
 use defmt_parser::{Fragment, Type};
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
@@ -30,6 +29,15 @@ pub struct Table {
     info: Range<usize>,
     trace: Range<usize>,
     warn: Range<usize>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub enum Level {
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
 }
 
 impl Table {
@@ -772,9 +780,7 @@ fn zigzag_decode(unsigned: u64) -> i64 {
 mod tests {
     use std::collections::BTreeMap;
 
-    use defmt_common::Level;
-
-    use super::{Frame, Table};
+    use super::{Frame, Table, Level};
     use crate::Arg;
 
     // helper function to initiate decoding and assert that the result is as expected.
