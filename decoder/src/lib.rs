@@ -679,9 +679,9 @@ impl<'t, 'b> Decoder<'t, 'b> {
                     let lowest_byte = range.start / 8;
                     // -1 because `range` is range-exclusive
                     let highest_byte = (range.end - 1) / 8;
-                    let truncated_sz = highest_byte - lowest_byte + 1; // in octets
+                    let size_after_truncation = highest_byte - lowest_byte + 1; // in octets
 
-                    match truncated_sz {
+                    match size_after_truncation {
                         1 => {
                             data = self.bytes.read_u8()? as u64;
                         }
@@ -691,7 +691,7 @@ impl<'t, 'b> Decoder<'t, 'b> {
                         3 => {
                             data = self.bytes.read_u24::<LE>()? as u64;
                         }
-                        5 => {
+                        4 => {
                             data = self.bytes.read_u32::<LE>()? as u64;
                         }
                         _ => {
@@ -1352,6 +1352,23 @@ mod tests {
             "bitfields {0:9..14}",
             &bytes,
             "0.000002 INFO bitfields 0b10001",
+        );
+    }
+
+    #[test]
+    fn bitfields_non_truncated_u32() {
+        let bytes = [
+            0,           // index
+            2,           // timestamp
+            0b0110_0011, // -
+            0b0000_1111, //  |
+            0b0101_1010, //  | u32
+            0b1100_0011  // -
+        ];
+        decode_and_expect(
+            "bitfields {0:0..2} {0:28..31}",
+            &bytes,
+            "0.000002 INFO bitfields 0b11 0b100",
         );
     }
 
