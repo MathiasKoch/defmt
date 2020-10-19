@@ -103,6 +103,56 @@ pub fn timestamp(args: TokenStream, input: TokenStream) -> TokenStream {
     .into()
 }
 
+// returns a list of features of which one has to be enabled for `level` to be active
+fn necessary_features_for_level(level: Level, debug_assertions: bool) -> &'static [&'static str] {
+    match level {
+        Level::Trace => {
+            if debug_assertions {
+                // dev profile
+                &["defmt-trace", "defmt-default"]
+            } else {
+                &["defmt-trace"]
+            }
+        }
+        Level::Debug => {
+            if debug_assertions {
+                // dev profile
+                &["defmt-debug", "defmt-trace", "defmt-default"]
+            } else {
+                &["defmt-debug", "defmt-trace"]
+            }
+        }
+        Level::Info => {
+            // defmt-default is enabled for dev & release profile so debug_assertions
+            // does not matter
+            &["defmt-info", "defmt-debug", "defmt-trace", "defmt-default"]
+        }
+        Level::Warn => {
+            // defmt-default is enabled for dev & release profile so debug_assertions
+            // does not matter
+            &[
+                "defmt-warn",
+                "defmt-info",
+                "defmt-debug",
+                "defmt-trace",
+                "defmt-default",
+            ]
+        }
+        Level::Error => {
+            // defmt-default is enabled for dev & release profile so debug_assertions
+            // does not matter
+            &[
+                "defmt-error",
+                "defmt-warn",
+                "defmt-info",
+                "defmt-debug",
+                "defmt-trace",
+                "defmt-default",
+            ]
+        }
+    }
+}
+
 // `#[derive(Format)]`
 #[proc_macro_derive(Format)]
 pub fn format(ts: TokenStream) -> TokenStream {
@@ -335,8 +385,8 @@ fn as_native_type(ty: &Type) -> Option<String> {
 }
 
 fn is_logging_enabled(level: Level) -> TokenStream2 {
-    let features_dev = level.necessary_features(true);
-    let features_release = level.necessary_features(false);
+    let features_dev = necessary_features_for_level(level, true);
+    let features_release = necessary_features_for_level(level, false);
 
     quote!(
         cfg!(debug_assertions) && cfg!(any(#( feature = #features_dev ),*))

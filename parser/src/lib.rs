@@ -322,56 +322,6 @@ impl Level {
             Level::Error => "error",
         }
     }
-
-    // returns a list of features of which one has to be enabled for this Level to be active
-    pub fn necessary_features(self, debug_assertions: bool) -> &'static [&'static str] {
-        match self {
-            Level::Trace => {
-                if debug_assertions {
-                    // dev profile
-                    &["defmt-trace", "defmt-default"]
-                } else {
-                    &["defmt-trace"]
-                }
-            }
-            Level::Debug => {
-                if debug_assertions {
-                    // dev profile
-                    &["defmt-debug", "defmt-trace", "defmt-default"]
-                } else {
-                    &["defmt-debug", "defmt-trace"]
-                }
-            }
-            Level::Info => {
-                // defmt-default is enabled for dev & release profile so debug_assertions
-                // does not matter
-                &["defmt-info", "defmt-debug", "defmt-trace", "defmt-default"]
-            }
-            Level::Warn => {
-                // defmt-default is enabled for dev & release profile so debug_assertions
-                // does not matter
-                &[
-                    "defmt-warn",
-                    "defmt-info",
-                    "defmt-debug",
-                    "defmt-trace",
-                    "defmt-default",
-                ]
-            }
-            Level::Error => {
-                // defmt-default is enabled for dev & release profile so debug_assertions
-                // does not matter
-                &[
-                    "defmt-error",
-                    "defmt-warn",
-                    "defmt-info",
-                    "defmt-debug",
-                    "defmt-trace",
-                    "defmt-default",
-                ]
-            }
-        }
-    }
 }
 
 #[cfg(test)]
