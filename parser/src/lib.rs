@@ -205,11 +205,14 @@ fn push_literal<'f>(
     Ok(())
 }
 
-pub fn get_max_bitfield_range<'a, I: std::clone::Clone>(bitfields: I) -> Option<(u8, u8)>
+/// returns Some(smallest_bit_index, largest_bit_index) contained in `params` if
+///         `params` contains any bitfields.
+///         None otherwise
+pub fn get_max_bitfield_range<'a, I: std::clone::Clone>(params: I) -> Option<(u8, u8)>
 where
     I: Iterator<Item = &'a Parameter>,
 {
-    let largest_bit_index = bitfields
+    let largest_bit_index = params
         .clone()
         .map(|param| match &param.ty {
             Type::BitField(range) => range.end,
@@ -217,7 +220,7 @@ where
         })
         .max();
 
-    let smallest_bit_index = bitfields
+    let smallest_bit_index = params
         .map(|param| match &param.ty {
             Type::BitField(range) => range.start,
             _ => unreachable!(),
