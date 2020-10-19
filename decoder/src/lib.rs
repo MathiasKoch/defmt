@@ -350,74 +350,77 @@ pub fn decode<'t>(
     Ok((frame, consumed))
 }
 
-/// deduplicate the bitfields in `params` by merging them into a new one with range min..max
-/// Note that `params` must be sorted by index!
-fn merge_bitfields(params: &mut Vec<Parameter>) {
-    // TODO refactor when `drain_filter()` is stable: current implementation re-inserts in place (messy)
-    // sorry about the wonky vars but accessing enum fields is too messy to just use a Param{}
-    let mut curr_bitfield_range: Option<Range<u8>> = None;
-    let mut curr_bitfield_index = 0;
-    let mut i = 0; // index of param being currently read. does not increase monotonically
-                          // since param length changes as we remove and re-add bitfields
-    let initial_num_params = params.len();
-    let mut num_params_read = 0;
-    while num_params_read < initial_num_params {
-        match &params[i].ty {
-            Type::BitField(range) => {
-                let range_start = range.start;
-                let range_end = range.end;
-                params.remove(i);
 
-                match &mut curr_bitfield_range {
-                    Some(r) => {
-                        if range_start < r.start {
-                            r.start = range_start;
+/// Note that this will not change the Bitfield params in place, i.e. if `params` was sorted before
+/// a call to this function, it won't be afterwards.
+fn merge_bitfields(params: &mut Vec<Parameter>) {
+    // TODO: find biggest index using fold instead
+
+    let mut merged_bitfields = Vec::new();
+
+    // naive implementation: we don't know the max index but we know it will be <= params.len()
+    // so let's loop through all of them
+    for index in 0..params.len() {
+        // TODO reused in macros; share
+
+        // 1. get all bitfields
+        let mut all_bitfields = params.iter()
+            .filter(|param| match (param.index, &param.ty) {
+                (i, Type::BitField(_)) if i == index => true,
+                _ => false
+            })
+            .peekable();
+
+        println!("all_bitfields {:?}", all_bitfields);
+        if all_bitfields.peek().is_some() {
+            let largest_bit_index = all_bitfields
+                .clone()
+                .map(|param| match &param.ty {
+                    defmt_parser::Type::BitField(range) => range.end,
+                    _ => unreachable!(),
+                })
+                .max()
+                .unwrap();
+
+            let smallest_bit_index = all_bitfields
+                .map(|param| match &param.ty {
+                    defmt_parser::Type::BitField(range) => range.start,
+                    _ => unreachable!(),
+                })
+                .min()
+                .unwrap();
+
+            // create new merged bitfield for this index
+            merged_bitfields.push(Parameter {
+                index: index,
+                ty: Type::BitField(Range {
+                    start: smallest_bit_index,
+                    end: largest_bit_index,
+                }),
+            });
+
+            // remove old bitfields with this index
+            // TODO refactor when `drain_filter()` is stable
+            let mut i = 0;
+            while i != params.len() {
+                match &params[i].ty {
+                    Type::BitField(_) => {
+                        if params[i].index == index {
+                            params.remove(i);
+                        } else {
+                            i += 1; // we haven't removed a bitfield -> move i forward
                         }
-                        if range_end > r.end {
-                            r.end = range_end;
-                        }
-                    }
-                    None => {
-                        curr_bitfield_range = Some(Range {
-                            start: range_start,
-                            end: range_end,
-                        })
+                    },
+                    _ => {
+                        i += 1; // we haven't removed a bitfield -> move i forward
                     }
                 }
             }
-            _ => {
-                // only move i forward if we haven't read a bitfield since reading a bitfield
-                // *removes* a param and thus shortens the list length
-                i += 1;
-            }
-        }
-
-        num_params_read += 1;
-
-        let end_of_params_reached = num_params_read == initial_num_params;
-        let mut next_index = curr_bitfield_index;
-        if ! end_of_params_reached {
-            next_index = params[i].index;
-        }
-
-        if end_of_params_reached || next_index != curr_bitfield_index {
-            // flush our current bitfield if there is one
-            if let Some(range) = curr_bitfield_range {
-                params.insert(
-                    curr_bitfield_index,
-                    Parameter {
-                        index: curr_bitfield_index,
-                        ty: Type::BitField(range),
-                    },
-                );
-
-                i += 1; // we've re-inserted, increase the index
-            }
-
-            curr_bitfield_range = None;
-            curr_bitfield_index = next_index;
         }
     }
+
+    // add merged bitfields to unsorted params
+    params.append(&mut merged_bitfields);
 }
 
 struct Decoder<'t, 'b> {
@@ -1555,14 +1558,9 @@ mod tests {
         }];
 
         merge_bitfields(&mut params);
-        assert_eq!(params, vec![Parameter {index: 0, ty: Type::BitField(0..3)},
-                                Parameter {index: 1, ty: Type::U8},
+        // note: current implementation appends merged bitfields to the end. this is not a must
+        assert_eq!(params, vec![Parameter {index: 1, ty: Type::U8},
+                                Parameter {index: 0, ty: Type::BitField(0..3)},
                                 Parameter {index: 2, ty: Type::BitField(1..5)}]);
-    }
-
-    #[test]
-    fn merge_bitfields_unsorted_params() {
-        // TODO add test to assert that unsorted lists are recognized and rejected
-        todo!();
     }
 }
