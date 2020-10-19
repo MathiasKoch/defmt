@@ -1,4 +1,4 @@
-// NOTE: always runs on the host
+// NOTE: always runs on the h{ index: (), ty: ()}index: (), ty: ()}t
 
 use core::fmt::{self, Write as _};
 use core::ops::Range;
@@ -350,6 +350,76 @@ pub fn decode<'t>(
     Ok((frame, consumed))
 }
 
+/// deduplicate the bitfields in `params` by merging them into a new one with range min..max
+/// Note that `params` must be sorted by index!
+fn merge_bitfields(params: &mut Vec<Parameter>) {
+    // TODO refactor when `drain_filter()` is stable: current implementation re-inserts in place (messy)
+    // sorry about the wonky vars but accessing enum fields is too messy to just use a Param{}
+    let mut curr_bitfield_range: Option<Range<u8>> = None;
+    let mut curr_bitfield_index = 0;
+    let mut i = 0; // index of param being currently read. does not increase monotonically
+                          // since param length changes as we remove and re-add bitfields
+    let initial_num_params = params.len();
+    let mut num_params_read = 0;
+    while num_params_read < initial_num_params {
+        match &params[i].ty {
+            Type::BitField(range) => {
+                let range_start = range.start;
+                let range_end = range.end;
+                params.remove(i);
+
+                match &mut curr_bitfield_range {
+                    Some(r) => {
+                        if range_start < r.start {
+                            r.start = range_start;
+                        }
+                        if range_end > r.end {
+                            r.end = range_end;
+                        }
+                    }
+                    None => {
+                        curr_bitfield_range = Some(Range {
+                            start: range_start,
+                            end: range_end,
+                        })
+                    }
+                }
+            }
+            _ => {
+                // only move i forward if we haven't read a bitfield since reading a bitfield
+                // *removes* a param and thus shortens the list length
+                i += 1;
+            }
+        }
+
+        num_params_read += 1;
+
+        let end_of_params_reached = num_params_read == initial_num_params;
+        let mut next_index = curr_bitfield_index;
+        if ! end_of_params_reached {
+            next_index = params[i].index;
+        }
+
+        if end_of_params_reached || next_index != curr_bitfield_index {
+            // flush our current bitfield if there is one
+            if let Some(range) = curr_bitfield_range {
+                params.insert(
+                    curr_bitfield_index,
+                    Parameter {
+                        index: curr_bitfield_index,
+                        ty: Type::BitField(range),
+                    },
+                );
+
+                i += 1; // we've re-inserted, increase the index
+            }
+
+            curr_bitfield_range = None;
+            curr_bitfield_index = next_index;
+        }
+    }
+}
+
 struct Decoder<'t, 'b> {
     table: &'t Table,
     bytes: &'b [u8],
@@ -398,64 +468,7 @@ impl<'t, 'b> Decoder<'t, 'b> {
             }
         });
 
-        // deduplicate bitfields by merging them into a new one with range min..max
-        // TODO refactor when `drain_filter()` is stable
-        // sorry about the wonky vars but accessing enum fields is too messy to just use a Param{}
-        let mut curr_bitfield_range: Option<Range<u8>> = None;
-        let mut curr_bitfield_index = 0;
-        let mut i = 0;
-        let initial_num_params = params.len();
-        let mut num_params_read = 0;
-        while num_params_read < initial_num_params {
-            match &params[i].ty {
-                Type::BitField(range) => {
-                    let range_start = range.start;
-                    let range_end = range.end;
-                    params.remove(i);
-
-                    match &mut curr_bitfield_range {
-                        Some(r) => {
-                            if range_start < r.start {
-                                r.start = range_start;
-                            }
-                            if range_end > r.end {
-                                r.end = range_end;
-                            }
-                        }
-                        None => {
-                            curr_bitfield_range = Some(Range {
-                                start: range_start,
-                                end: range_end,
-                            })
-                        }
-                    }
-                }
-                _ => {
-                    i += 1;
-                }
-            }
-
-            num_params_read += 1;
-
-            // if we're at the end of the param list or handling a new param, flush our current bitfield
-            if (num_params_read == initial_num_params)
-                || (params[i].index != curr_bitfield_index)
-            {
-                if let Some(range) = curr_bitfield_range {
-                    // range is plausible, i.e. we've actually read a bitfield
-                    params.insert(
-                        curr_bitfield_index,
-                        Parameter {
-                            index: curr_bitfield_index,
-                            ty: Type::BitField(range),
-                        },
-                    );
-                }
-
-                curr_bitfield_range = None;
-                curr_bitfield_index = i;
-            }
-        }
+        merge_bitfields(params);
 
         params.dedup_by(|a, b| a.index == b.index);
     }
@@ -831,9 +844,10 @@ mod tests {
     use std::collections::BTreeMap;
 
     use defmt_common::Level;
+    use defmt_parser::{Parameter, Type};
 
     use super::{Frame, Table};
-    use crate::Arg;
+    use crate::{Arg, merge_bitfields};
 
     // helper function to initiate decoding and assert that the result is as expected.
     //
@@ -1363,7 +1377,7 @@ mod tests {
             0b0110_0011, // -
             0b0000_1111, //  |
             0b0101_1010, //  | u32
-            0b1100_0011  // -
+            0b1100_0011, // -
         ];
         decode_and_expect(
             "bitfields {0:0..2} {0:28..31}",
@@ -1466,4 +1480,64 @@ mod tests {
         let frame = super::decode(&bytes, &table).unwrap().0;
         assert_eq!(frame.display(false).to_string(), "0.000001 INFO x=None");
     }
+
+    #[test]
+    fn merge_bitfields_simple() {
+        let mut params = vec![
+        Parameter {
+            index: 0,
+            ty: Type::BitField(0..3),
+        },
+        Parameter {
+            index: 0,
+            ty: Type::BitField(4..7),
+        }];
+
+        merge_bitfields(&mut params);
+        assert_eq!(params, vec![Parameter {index: 0, ty: Type::BitField(0..7)}]);
+    }
+
+    #[test]
+    fn merge_bitfields_overlap() {
+        let mut params = vec![
+        Parameter {
+            index: 0,
+            ty: Type::BitField(1..3),
+        },
+        Parameter {
+            index: 0,
+            ty: Type::BitField(2..5),
+        }];
+
+        merge_bitfields(&mut params);
+        assert_eq!(params, vec![Parameter {index: 0, ty: Type::BitField(1..5)}]);
+    }
+
+    #[test]
+    fn merge_bitfields_multiple_indices() {
+        let mut params = vec![
+        Parameter {
+            index: 0,
+            ty: Type::BitField(0..3),
+        },
+        Parameter {
+            index: 1,
+            ty: Type::BitField(1..3),
+        },
+        Parameter {
+            index: 1,
+            ty: Type::BitField(4..5),
+        }];
+
+        merge_bitfields(&mut params);
+        assert_eq!(params, vec![Parameter {index: 0, ty: Type::BitField(0..3)},
+                                Parameter {index: 1, ty: Type::BitField(1..5)}]);
+    }
+
+    fn merge_bitfields_non_consecutive_indices() {
+        todo!();
+    }
+
+    // TODO add test to assert that unsorted lists are recognized and rejected
+    // TODO if there are any bitfield tests that are just about merging, refactor them into here?
 }
