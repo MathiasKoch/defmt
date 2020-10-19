@@ -2,7 +2,6 @@
 
 use core::fmt::{self, Write as _};
 use core::ops::Range;
-use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::{
     error::Error,
@@ -354,16 +353,15 @@ pub fn decode<'t>(
 /// Note that this will not change the Bitfield params in place, i.e. if `params` was sorted before
 /// a call to this function, it won't be afterwards.
 fn merge_bitfields(params: &mut Vec<Parameter>) {
-    // TODO: find biggest index using fold instead
 
     let mut merged_bitfields = Vec::new();
 
+    // TODO: find biggest index using fold instead
     // naive implementation: we don't know the max index but we know it will be <= params.len()
     // so let's loop through all of them
     for index in 0..params.len() {
         // TODO reused in macros; share
 
-        // 1. get all bitfields
         let mut all_bitfields = params.iter()
             .filter(|param| match (param.index, &param.ty) {
                 (i, Type::BitField(_)) if i == index => true,
@@ -371,7 +369,6 @@ fn merge_bitfields(params: &mut Vec<Parameter>) {
             })
             .peekable();
 
-        println!("all_bitfields {:?}", all_bitfields);
         if all_bitfields.peek().is_some() {
             let largest_bit_index = all_bitfields
                 .clone()
@@ -463,18 +460,7 @@ impl<'t, 'b> Decoder<'t, 'b> {
 
         // sort & dedup to ensure that format string args can be addressed by index too
         // TODO rm bitfield extra case, not needed anymore
-        params.sort_by(|a, b| {
-            if a.index == b.index {
-                match (&a.ty, &b.ty) {
-                    (Type::BitField(a_range), Type::BitField(b_range)) => {
-                        a_range.start.cmp(&b_range.start)
-                    }
-                    _ => Ordering::Equal,
-                }
-            } else {
-                a.index.cmp(&b.index)
-            }
-        });
+        params.sort_by(|a, b| { a.index.cmp(&b.index) });
 
         params.dedup_by(|a, b| a.index == b.index);
     }
