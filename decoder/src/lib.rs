@@ -1534,10 +1534,35 @@ mod tests {
                                 Parameter {index: 1, ty: Type::BitField(1..5)}]);
     }
 
-    fn merge_bitfields_non_consecutive_indices() {
-        todo!();
+    #[test]
+    fn merge_bitfields_overlap_non_consecutive_indices() {
+        let mut params = vec![
+        Parameter {
+            index: 0,
+            ty: Type::BitField(0..3),
+        },
+        Parameter {
+            index: 1,
+            ty: Type::U8
+        },
+        Parameter {
+            index: 2,
+            ty: Type::BitField(1..4),
+        },
+        Parameter {
+            index: 2,
+            ty: Type::BitField(4..5),
+        }];
+
+        merge_bitfields(&mut params);
+        assert_eq!(params, vec![Parameter {index: 0, ty: Type::BitField(0..3)},
+                                Parameter {index: 1, ty: Type::U8},
+                                Parameter {index: 2, ty: Type::BitField(1..5)}]);
     }
 
-    // TODO add test to assert that unsorted lists are recognized and rejected
-    // TODO if there are any bitfield tests that are just about merging, refactor them into here?
+    #[test]
+    fn merge_bitfields_unsorted_params() {
+        // TODO add test to assert that unsorted lists are recognized and rejected
+        todo!();
+    }
 }
