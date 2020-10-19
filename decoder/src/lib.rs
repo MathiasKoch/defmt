@@ -16,7 +16,7 @@ use byteorder::{ReadBytesExt, LE};
 use colored::Colorize;
 
 pub use defmt_common::Level;
-use defmt_parser::{Fragment, Parameter, Type};
+use defmt_parser::{Fragment, Parameter, Type, get_max_bitfield_range};
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
@@ -349,11 +349,9 @@ pub fn decode<'t>(
     Ok((frame, consumed))
 }
 
-
 /// Note that this will not change the Bitfield params in place, i.e. if `params` was sorted before
 /// a call to this function, it won't be afterwards.
 fn merge_bitfields(params: &mut Vec<Parameter>) {
-
     let mut merged_bitfields = Vec::new();
 
     // TODO: find biggest index using fold instead
@@ -362,37 +360,23 @@ fn merge_bitfields(params: &mut Vec<Parameter>) {
     for index in 0..params.len() {
         // TODO reused in macros; share
 
-        let mut all_bitfields = params.iter()
+        let mut bitfields_with_index = params
+            .iter()
             .filter(|param| match (param.index, &param.ty) {
                 (i, Type::BitField(_)) if i == index => true,
-                _ => false
+                _ => false,
             })
             .peekable();
 
-        if all_bitfields.peek().is_some() {
-            let largest_bit_index = all_bitfields
-                .clone()
-                .map(|param| match &param.ty {
-                    defmt_parser::Type::BitField(range) => range.end,
-                    _ => unreachable!(),
-                })
-                .max()
-                .unwrap();
-
-            let smallest_bit_index = all_bitfields
-                .map(|param| match &param.ty {
-                    defmt_parser::Type::BitField(range) => range.start,
-                    _ => unreachable!(),
-                })
-                .min()
-                .unwrap();
+        if bitfields_with_index.peek().is_some() {
+            let (smallest, largest) = get_max_bitfield_range(bitfields_with_index).unwrap();
 
             // create new merged bitfield for this index
             merged_bitfields.push(Parameter {
                 index: index,
                 ty: Type::BitField(Range {
-                    start: smallest_bit_index,
-                    end: largest_bit_index,
+                    start: smallest,
+                    end: largest,
                 }),
             });
 
@@ -407,7 +391,7 @@ fn merge_bitfields(params: &mut Vec<Parameter>) {
                         } else {
                             i += 1; // we haven't removed a bitfield -> move i forward
                         }
-                    },
+                    }
                     _ => {
                         i += 1; // we haven't removed a bitfield -> move i forward
                     }
@@ -454,13 +438,12 @@ impl<'t, 'b> Decoder<'t, 'b> {
 
     /// Sort and deduplicate `params` so that they can be interpreted correctly during decoding
     fn prepare_params(&self, params: &mut Vec<Parameter>) {
-
         // deduplicate bitfields by merging them by index
         merge_bitfields(params);
 
         // sort & dedup to ensure that format string args can be addressed by index too
         // TODO rm bitfield extra case, not needed anymore
-        params.sort_by(|a, b| { a.index.cmp(&b.index) });
+        params.sort_by(|a, b| a.index.cmp(&b.index));
 
         params.dedup_by(|a, b| a.index == b.index);
     }
@@ -839,7 +822,7 @@ mod tests {
     use defmt_parser::{Parameter, Type};
 
     use super::{Frame, Table};
-    use crate::{Arg, merge_bitfields};
+    use crate::{merge_bitfields, Arg};
 
     // helper function to initiate decoding and assert that the result is as expected.
     //
@@ -1316,7 +1299,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn bitfields_mixed() {
         let bytes = [
@@ -1333,7 +1315,6 @@ mod tests {
             "0.000002 INFO #0: 0b1011, #1: 42, #2: 0b10001",
         );
     }
-
 
     #[test]
     fn bitfields_across_boundaries() {
@@ -1495,80 +1476,121 @@ mod tests {
     #[test]
     fn merge_bitfields_simple() {
         let mut params = vec![
-        Parameter {
-            index: 0,
-            ty: Type::BitField(0..3),
-        },
-        Parameter {
-            index: 0,
-            ty: Type::BitField(4..7),
-        }];
+            Parameter {
+                index: 0,
+                ty: Type::BitField(0..3),
+            },
+            Parameter {
+                index: 0,
+                ty: Type::BitField(4..7),
+            },
+        ];
 
         merge_bitfields(&mut params);
-        assert_eq!(params, vec![Parameter {index: 0, ty: Type::BitField(0..7)}]);
+        assert_eq!(
+            params,
+            vec![Parameter {
+                index: 0,
+                ty: Type::BitField(0..7)
+            }]
+        );
     }
 
     #[test]
     fn merge_bitfields_overlap() {
         let mut params = vec![
-        Parameter {
-            index: 0,
-            ty: Type::BitField(1..3),
-        },
-        Parameter {
-            index: 0,
-            ty: Type::BitField(2..5),
-        }];
+            Parameter {
+                index: 0,
+                ty: Type::BitField(1..3),
+            },
+            Parameter {
+                index: 0,
+                ty: Type::BitField(2..5),
+            },
+        ];
 
         merge_bitfields(&mut params);
-        assert_eq!(params, vec![Parameter {index: 0, ty: Type::BitField(1..5)}]);
+        assert_eq!(
+            params,
+            vec![Parameter {
+                index: 0,
+                ty: Type::BitField(1..5)
+            }]
+        );
     }
 
     #[test]
     fn merge_bitfields_multiple_indices() {
         let mut params = vec![
-        Parameter {
-            index: 0,
-            ty: Type::BitField(0..3),
-        },
-        Parameter {
-            index: 1,
-            ty: Type::BitField(1..3),
-        },
-        Parameter {
-            index: 1,
-            ty: Type::BitField(4..5),
-        }];
+            Parameter {
+                index: 0,
+                ty: Type::BitField(0..3),
+            },
+            Parameter {
+                index: 1,
+                ty: Type::BitField(1..3),
+            },
+            Parameter {
+                index: 1,
+                ty: Type::BitField(4..5),
+            },
+        ];
 
         merge_bitfields(&mut params);
-        assert_eq!(params, vec![Parameter {index: 0, ty: Type::BitField(0..3)},
-                                Parameter {index: 1, ty: Type::BitField(1..5)}]);
+        assert_eq!(
+            params,
+            vec![
+                Parameter {
+                    index: 0,
+                    ty: Type::BitField(0..3)
+                },
+                Parameter {
+                    index: 1,
+                    ty: Type::BitField(1..5)
+                }
+            ]
+        );
     }
 
     #[test]
     fn merge_bitfields_overlap_non_consecutive_indices() {
         let mut params = vec![
-        Parameter {
-            index: 0,
-            ty: Type::BitField(0..3),
-        },
-        Parameter {
-            index: 1,
-            ty: Type::U8
-        },
-        Parameter {
-            index: 2,
-            ty: Type::BitField(1..4),
-        },
-        Parameter {
-            index: 2,
-            ty: Type::BitField(4..5),
-        }];
+            Parameter {
+                index: 0,
+                ty: Type::BitField(0..3),
+            },
+            Parameter {
+                index: 1,
+                ty: Type::U8,
+            },
+            Parameter {
+                index: 2,
+                ty: Type::BitField(1..4),
+            },
+            Parameter {
+                index: 2,
+                ty: Type::BitField(4..5),
+            },
+        ];
 
         merge_bitfields(&mut params);
         // note: current implementation appends merged bitfields to the end. this is not a must
-        assert_eq!(params, vec![Parameter {index: 1, ty: Type::U8},
-                                Parameter {index: 0, ty: Type::BitField(0..3)},
-                                Parameter {index: 2, ty: Type::BitField(1..5)}]);
+        assert_eq!(
+            params,
+            vec![
+                Parameter {
+                    index: 1,
+                    ty: Type::U8
+                },
+                Parameter {
+                    index: 0,
+                    ty: Type::BitField(0..3)
+                },
+                Parameter {
+                    index: 2,
+                    ty: Type::BitField(1..5)
+                }
+            ]
+        );
     }
 }

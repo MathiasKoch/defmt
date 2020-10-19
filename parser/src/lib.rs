@@ -205,6 +205,32 @@ fn push_literal<'f>(
     Ok(())
 }
 
+pub fn get_max_bitfield_range<'a, I: std::clone::Clone>(bitfields: I) -> Option<(u8, u8)>
+where
+    I: Iterator<Item = &'a Parameter>,
+{
+    let largest_bit_index = bitfields
+        .clone()
+        .map(|param| match &param.ty {
+            Type::BitField(range) => range.end,
+            _ => unreachable!(),
+        })
+        .max();
+
+    let smallest_bit_index = bitfields
+        .map(|param| match &param.ty {
+            Type::BitField(range) => range.start,
+            _ => unreachable!(),
+        })
+        .min();
+
+    match (smallest_bit_index, largest_bit_index) {
+        (Some(smallest), Some(largest)) => Some((smallest, largest)),
+        (None, None) => None,
+        _ => unreachable!(),
+    }
+}
+
 pub fn parse<'f>(format_string: &'f str) -> Result<Vec<Fragment<'f>>, Cow<'static, str>> {
     let mut fragments = Vec::new();
 
