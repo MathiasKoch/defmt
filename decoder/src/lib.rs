@@ -352,14 +352,19 @@ pub fn decode<'t>(
 /// Note that this will not change the Bitfield params in place, i.e. if `params` was sorted before
 /// a call to this function, it won't be afterwards.
 fn merge_bitfields(params: &mut Vec<Parameter>) {
+    if params.len() == 0 {
+        return;
+    }
+
     let mut merged_bitfields = Vec::new();
 
-    // TODO: find biggest index using fold instead
-    // naive implementation: we don't know the max index but we know it will be <= params.len()
-    // so let's loop through all of them
-    for index in 0..params.len() {
-        // TODO reused in macros; share
+    let max_index: usize = *params
+        .iter()
+        .map(|param| &param.index)
+        .max()
+        .unwrap();
 
+    for index in 0..=max_index {
         let mut bitfields_with_index = params
             .iter()
             .filter(|param| match (param.index, &param.ty) {
@@ -442,9 +447,7 @@ impl<'t, 'b> Decoder<'t, 'b> {
         merge_bitfields(params);
 
         // sort & dedup to ensure that format string args can be addressed by index too
-        // TODO rm bitfield extra case, not needed anymore
         params.sort_by(|a, b| a.index.cmp(&b.index));
-
         params.dedup_by(|a, b| a.index == b.index);
     }
 
