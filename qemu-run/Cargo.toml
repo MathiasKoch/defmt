@@ -10,3 +10,9 @@ version = "0.1.0"
 anyhow = "1.0.32"
 defmt-decoder = { path = "../decoder", features = ["unstable"] }
 defmt-elf2table = { path = "../elf2table" }
+
+[features]
+unstable = []
+
+[package.metadata.docs.rs]
+rustdoc-args = [ "--cfg docsrs" ]

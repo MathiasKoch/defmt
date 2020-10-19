@@ -3,6 +3,10 @@
 //! Parses data sent by QEMU over semihosting (ARM Cortex-M only).
 //! *Printers* are *host* programs that receive log data, format it and display it.
 
+#![cfg(feature="unstable")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(cfg(unstable)))]
+
 use std::{
     env, fs,
     io::Read as _,
