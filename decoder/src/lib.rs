@@ -457,7 +457,12 @@ impl<'t, 'b> Decoder<'t, 'b> {
 
     /// Sort and deduplicate `params` so that they can be interpreted correctly during decoding
     fn prepare_params(&self, params: &mut Vec<Parameter>) {
+
+        // deduplicate bitfields by merging them by index
+        merge_bitfields(params);
+
         // sort & dedup to ensure that format string args can be addressed by index too
+        // TODO rm bitfield extra case, not needed anymore
         params.sort_by(|a, b| {
             if a.index == b.index {
                 match (&a.ty, &b.ty) {
@@ -470,8 +475,6 @@ impl<'t, 'b> Decoder<'t, 'b> {
                 a.index.cmp(&b.index)
             }
         });
-
-        merge_bitfields(params);
 
         params.dedup_by(|a, b| a.index == b.index);
     }
@@ -1326,6 +1329,25 @@ mod tests {
             "0.000002 INFO #0: 0b1011, #1: 0b10001",
         );
     }
+
+
+    #[test]
+    fn bitfields_mixed() {
+        let bytes = [
+            0, // index
+            2, // timestamp
+            0b1111_0000,
+            0b1110_0101, // u16 bitfields
+            42,          // u8
+            0b1111_0001, // u8 bitfields
+        ];
+        decode_and_expect(
+            "#0: {0:7..12}, #1: {1:u8}, #2: {2:0..5}",
+            &bytes,
+            "0.000002 INFO #0: 0b1011, #1: 42, #2: 0b10001",
+        );
+    }
+
 
     #[test]
     fn bitfields_across_boundaries() {
