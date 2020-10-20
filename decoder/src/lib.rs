@@ -1,4 +1,4 @@
-// NOTE: always runs on the h{ index: (), ty: ()}index: (), ty: ()}t
+// NOTE: always runs on the host
 
 use core::fmt::{self, Write as _};
 use core::ops::Range;
