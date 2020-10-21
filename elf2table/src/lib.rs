@@ -1,5 +1,9 @@
-//! INTERNAL; DO NOT USE. Please use the `defmt` crate to access the functionality implemented here.
-//! Reads ELF metadata and builds an interner table
+//! Reads ELF metadata and builds an interner table.
+//! Used by [`defmt`](https://github.com/knurling-rs/defmt).
+
+#![cfg(feature="unstable")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(cfg(unstable)))]
 
 use std::{
     borrow::Cow,

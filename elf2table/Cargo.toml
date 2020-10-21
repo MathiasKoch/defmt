@@ -7,10 +7,16 @@ version = "0.1.0"
 
 [dependencies]
 anyhow = "1.0.32"
-defmt-decoder = { path = "../decoder", features = ["unstable"]}
+defmt-decoder = { path = "../decoder", features = ["unstable"] }
 gimli = "0.22.0"
 
 [dependencies.object]
 version = "0.21.0"
 default-features = false
 features = ["read_core", "elf", "std"]
+
+[features]
+unstable = []
+
+[package.metadata.docs.rs]
+rustdoc-args = [ "--cfg docsrs" ]
