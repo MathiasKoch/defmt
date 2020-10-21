@@ -1,5 +1,10 @@
-use core::ops::Range;
+//! Parsing library for [`defmt`](https://github.com/knurling-rs/defmt) format strings.
 
+#![cfg(feature="unstable")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(cfg(unstable)))]
+
+use core::ops::Range;
 use std::borrow::Cow;
 
 /// A `{{:parameter}}` in a format string.
